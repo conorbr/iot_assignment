@@ -1,0 +1,104 @@
+import fcntl, socket, struct, dweepy, time, platform, random
+import threading
+import time
+import dweepy
+import json
+
+
+#------------------ dummy data --------------------#
+
+def post(dic):
+    thing = 'android-dweet-160217'
+    print dweepy.dweet_for(thing, dic)
+
+def getMessage():
+    dict = {}
+    dict["message"] = "hello"
+    dict["temp"] = "50"
+    dict["noise"] = "100"
+    return dict
+
+
+
+#------------------ threading --------------------#
+
+c = threading.Condition()
+flag = 0      #shared between Thread_A and Thread_B
+val = 20
+checker = None
+dweet_controller = 'android-dweet-160217-controller'
+
+class Thread_A(threading.Thread):
+    def __init__(self, name):
+        threading.Thread.__init__(self)
+        self.name = name
+
+    def run(self):
+        global flag
+        global val     #made global here
+        global checker
+        global dweet
+        while True:
+            c.acquire()
+            if flag == 0:
+                dweet = dweepy.get_latest_dweet_for(dweet_controller)
+                readable_json = json.dumps(dweet)
+                start_command = 'start'
+                if start_command in readable_json:
+                    print 'start!'
+                    checker = True
+                else:
+                    print 'stop!'
+                    checker = False
+                time.sleep(0.1)
+                flag = 1
+                val = 30
+                c.notify_all()
+            else:
+                c.wait()
+            c.release()
+
+
+
+
+
+class Thread_B(threading.Thread):
+    def __init__(self, name):
+        threading.Thread.__init__(self)
+        self.name = name
+
+    def run(self):
+        global flag
+        global val    #made global here
+        global checker
+        global dweet
+        while True:
+            c.acquire()
+            if flag == 1:
+                if checker == False:
+                     checker = True
+                     flag = 0
+                     val = 20
+                     c.notify_all()
+                     time.sleep(5)
+                else:
+                    dict = getMessage();
+                    post(dict)
+                    print dict
+                    flag = 0
+                    val = 20
+                    c.notify_all()
+                    time.sleep(5)
+            else:
+                c.wait()
+            c.release()
+
+
+a = Thread_A("myThread_name_A")
+b = Thread_B("myThread_name_B")
+
+b.start()
+a.start()
+
+a.join()
+b.join()
